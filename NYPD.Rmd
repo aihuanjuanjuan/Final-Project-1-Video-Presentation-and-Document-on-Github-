@@ -1,0 +1,133 @@
+---
+title: "NYPD Shooting Incident Data Report"
+author: "Fei Ai"
+date: "2022-08-14"
+output:
+  pdf_document: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+**(Notice: I break my work into several steps for more readable, but it's not exactly the same as the project steps definition, please review and take it as a reference, thanks!)**
+
+## Backgroud
+
+For every couple of days, we can hear the frightening shooting news at some corner of the country. And every time, there will be someone being hurt, or even being killed, I think that’s terrible, right? Because of endless gun violence, it seems like the city becomes more dangerous year by year. It this true? I'm interesting about this question and I will conduct a related investigation.
+
+## Importing data
+
+**Firstly**, I will start by reading **NYPD Shooting Incident Data (Historic)** from the csv file which is downloaded from this website <https://catalog.data.gov/dataset/nypd-shooting-incident-data-historic>.
+```{r get_NYPD_data}
+## Get historic data in the csv file
+url_in <-"https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+```
+
+**Step 2:**
+Let's read in the data and see what we have. The table "NYPD" looks like below:
+```{r import_data, message=FALSE}
+library(tidyverse)
+NYPD <- read_csv(url_in)
+NYPD
+```
+## Tidying and Transforming
+
+
+**Step 3:**
+After looking at the NYPD, I would like to tidy the dataset, I don't need INCIDENT_KEY, PRECINCT, JURISDICTION_CODE, LOCATION_DESC, X_COORD_CD, Y_COORD_CD, Latitude, Longitude and Lon_Lat for the analysis I am planning, so I will get rid of these. Then the table "NYPD_summary1" looks like below:
+```{r tidy_NYPD}
+NYPD_summary1 = subset(NYPD, select = -c(INCIDENT_KEY, PRECINCT, JURISDICTION_CODE, 
+                                         LOCATION_DESC, X_COORD_CD, Y_COORD_CD, 
+                                         Latitude, Longitude, Lon_Lat))
+NYPD_summary1
+```
+
+**Step 4:**
+And then I will rename OCCUR_DATE and OCCUR_TIME to be more R friendly, and change date types to display. Now the table "NYPD_summary2" looks like below:
+```{r tidy_NYPD_summary1}
+library(lubridate)
+NYPD_summary2 <- NYPD_summary1 %>%
+     rename(DATE = `OCCUR_DATE`,
+            TIME = `OCCUR_TIME`) %>%
+     mutate(DATE = mdy(DATE))
+NYPD_summary2
+```
+
+**Step 5:**
+Furthermore, I find there are many missing data which shows "NA", I will remove all the rows containing "NA". After all process, I got my table "NYPD_summary" like below:
+```{r tidy_NYPD_summary2}
+NYPD_summary <- NYPD_summary2 %>%
+     na.omit(NYPD_summary)
+NYPD_summary
+```
+
+**Step 6:**
+I'm interested in which district is safer in New York. So I generate a new table "Different_boroughs" by counting shooting cases from 2006 to 2021 of different boroughs in New York.
+```{r new_table1}
+library(dplyr)
+Different_boroughs <- NYPD_summary %>% group_by(BORO) %>% summarise(count_nums = n())
+```
+
+**Step 7:**
+Also I want to know the shooting cases trend by yearly. So I generate another new table "Cases_Per_Year" based on the total shooting cases counting by each year from 2006 to 2021 in New York.
+```{r new_table2}
+NYPD_summary$Year <- as.numeric(format(NYPD_summary$DATE, "%Y"))
+Cases_Per_Year <- NYPD_summary %>% group_by(Year) %>% summarise(count_nums = n())
+```
+
+
+## Visualizations
+
+**Step 8:**
+Visualizing the data in the table1 "Different_boroughs" by a bar plot.
+```{r Different_boroughs}
+library(ggplot2)
+ggplot(Different_boroughs, aes(x=BORO, y=count_nums)) + 
+geom_bar(stat="identity", fill ="blue") +
+labs(x="Borough", y="Shooting Cases Number")+ 
+ggtitle("Shooting Cases Count of Different Boroughs (2006-2021)")
+```
+
+**Step 9:**
+Visualizing the data in the table2 "Cases_Per_Year" by a line plot.
+```{r Cases_Per_Year}
+ggplot(Cases_Per_Year, aes(x=Year,y=count_nums))+
+geom_line(color="red", size=2)+
+geom_point(shape=21, color="black", fill="black", size=5)+
+labs(x="Year", y="Shooting Cases Number")+ 
+scale_x_continuous(breaks=seq(from = 2006, to = 2021, by = 1))+
+ggtitle("Shooting Cases Count of of Each Year in New York")
+```
+## Modeling
+
+**Step 10:**
+**Modeling** the plot above with a linear fashion.
+```{r modeling}
+ggplot(Cases_Per_Year, aes(x=Year,y=count_nums)) +
+geom_point(shape=21, color="black", size=4) +
+stat_smooth(method = lm)+
+labs(x="Year", y="Shooting Cases Number")+
+scale_x_continuous(breaks=seq(from = 2006, to = 2021, by = 1))+
+ggtitle("Shooting Cases Count of of Each Year in New York (Linear modeling)")
+```
+
+
+## Analysis
+
+According to the bar plot of "Shooting Cases Count of Different Boroughs (2006-2021)", there are case data collected from five districts in New York, they are: Bronx, Brooklyn, Manhattan, Queens and Staten Island. The total maximum cases borough is Brooklyn, the number is 6074, which reach 37.4% of the total cases in New York. And the total minimum cases borough is Staten Island, the number is 591, the percentage is about 3.6%. If we look at the map of New York below, we will find the area of Brooklyn and Staten Island is about the same, but the total cases of the former is almost 10 times as the latter. That's interesting, maybe one of the reason is that Brooklyn is close to the city center and there are downtowns, and Staten Island is just at the suburb, far from the crowd area.
+![Boroughs Map of New York City](C:/Users/aihua/OneDrive/Desktop/04 Data Science as a Field/04-000 project/Boroughs_Labels_New_York_City_Map.png)
+
+Based on the line plot of "Shooting Cases Count of of Each Year in New York", there are case data collected from 2006 to 2021 in New York. The total maximum cases year is 2006, the number is 1890. And the total minimum cases year is 2019, the number is 545. Since 2006, the cases number are mainly decreasing (except 2008) with the year until 2019, but then has an obvious increase in 2020 and 2021. There are several question worthy deep investigation. Does 2006 has the highest case number in all the recorded history? We should explore more data before 2006, and then make a judge. Why did the cases has a period peak in 2008, due to the financial crisis that year? Why did the shooting cases increase in recent two years? Does that has any relation to the COVID-19 pandemic? If so, with the ending of pandemic, can we predict that the decay trend (from 2006 to 2019) will continue by tracking the case number after 2022? 
+
+
+## Conclusion and Bias Identification
+
+
+If we review the bar plot of "Shooting Cases Count of Different Boroughs (2006-2021)", we can draw a conclusion that Brooklyn is the most dangerous borough in New York because it has the biggest number, so many shooting cases and many people were killed, and Staten Island is the safest borough in New York because it has the smallest number. That seems make sense. To my personal feeling, downtown area are always the heaven of all kinds of crime. But that maybe has some bias, to some extent, we should consider the population of each borough, and then we can compare cases number based on per million/thousand people. I don't know, if we have that data, maybe we can get another picture and tell a different story.
+
+For the "Shooting Cases Count of of Each Year in New York", from a 15 years observation window, we found that Shooting Cases are decreasing year by year except for recent two year, we can draw a conclusion that it becomes safer now in New York comparing with the past. Is this kind of decrease a long term trend? I hope so and I believe it maybe my personal bias. I expect that the gun violence will reduce and the city around us will be a better and safer place in the future. But I need more data after 2022 to support this optimistic expectation. On the other hand, is the decrease a result of the implementation of the law "Ammunition Regulation"? Maybe. Also, I notice that the case number increase suddenly in 2008 and 2020, which most likely related with economic crisis. I think this is my second possible bias, I need to import specific economic data in the history of New York (2006 to 2021 and the year before 2006), take a look and conduct analysis. If that's true, perhaps, the ultimate solution for a city to reduce gun violence is developing economic and make everyone employed. 
